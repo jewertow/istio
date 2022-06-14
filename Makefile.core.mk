@@ -303,6 +303,7 @@ gen: \
 	proto \
 	copy-templates \
 	gen-addons \
+	maistra-gen \
 	update-golden ## Update all generated code.
 
 gen-check: gen check-clean-repo
@@ -476,3 +477,5 @@ include tools/packaging/packaging.mk
 include tests/integration/tests.mk
 
 include common/Makefile.common.mk
+
+include pkg/servicemesh/maistra.mk

@@ -15,6 +15,7 @@
 package controller
 
 import (
+	xnsinformers "github.com/maistra/xns-informer/pkg/informers"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -55,6 +56,8 @@ type NamespaceController struct {
 
 	// if meshConfig.DiscoverySelectors specified, DiscoveryNamespacesFilter tracks the namespaces to be watched by this controller.
 	DiscoveryNamespacesFilter filter.DiscoveryNamespacesFilter
+	usesMemberRollController  bool
+	namespaceSet              xnsinformers.NamespaceSet
 }
 
 // NewNamespaceController returns a pointer to a newly constructed NamespaceController instance.
@@ -70,8 +73,6 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 		controllers.WithMaxAttempts(maxRetries))
 
 	c.configmaps = kclient.New[*v1.ConfigMap](kubeClient)
-	c.namespaces = kclient.New[*v1.Namespace](kubeClient)
-
 	c.configmaps.AddEventHandler(controllers.FilteredObjectSpecHandler(c.queue.AddObject, func(o controllers.Object) bool {
 		if o.GetName() != CACertNamespaceConfigMap {
 			// This is a change to a configmap we don't watch, ignore it
@@ -87,6 +88,24 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 		}
 		return true
 	}))
+
+	// If a MemberRoll controller is configured on the client, skip creating the
+	// namespace informer and just respond to changes in the MemberRoll.
+	if mrc := kubeClient.GetMemberRoll(); mrc != nil {
+		c.usesMemberRollController = true
+		c.namespaceSet = xnsinformers.NewNamespaceSet()
+		c.namespaceSet.AddHandler(xnsinformers.NamespaceSetHandlerFuncs{
+			AddFunc: func(ns string) {
+				if err := c.insertDataForNamespace(types.NamespacedName{Namespace: "", Name: ns}); err != nil {
+					log.Errorf("error inserting data for namespace: %v", err)
+				}
+			},
+		})
+
+		mrc.Register(c.namespaceSet, "namespace-controller")
+		return c
+	}
+
 	c.namespaces.AddEventHandler(controllers.FilteredObjectSpecHandler(c.queue.AddObject, func(o controllers.Object) bool {
 		if features.InformerWatchNamespace != "" && features.InformerWatchNamespace != o.GetName() {
 			// We are only watching one namespace, and its not this one
@@ -165,6 +184,13 @@ func (nc *NamespaceController) syncNamespace(ns *v1.Namespace) {
 	}
 	// skip namespaces we don't watch
 	if nc.DiscoveryNamespacesFilter != nil && !nc.DiscoveryNamespacesFilter.FilterNamespace(ns.ObjectMeta) {
+		return
+	}
+
+	// If a MemberRoll controller is in use, and the set of
+	// namespaces still includes the one for this ConfigMap,
+	// then recreate the ConfigMap, otherwise do nothing.
+	if nc.usesMemberRollController && !nc.namespaceSet.Contains(ns.Name) {
 		return
 	}
 	nc.queue.Add(types.NamespacedName{Name: ns.Name})
