@@ -8,6 +8,8 @@ exclude k8s.io/kubernetes v1.13.0
 // Client-go does not handle different versions of mergo due to some breaking changes - use the matching version
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
+replace github.com/maistra/xns-informer v0.0.0-20230622115340-648631dad831 => github.com/jewertow/xns-informer v0.0.0-20230629222124-8bae464547d2
+
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/monitoring v1.13.0
@@ -51,13 +53,14 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lestrrat-go/jwx v1.2.25
+	github.com/maistra/xns-informer v0.0.0-20230622115340-648631dad831
 	github.com/mattn/go-isatty v0.0.18
 	github.com/miekg/dns v1.1.53
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.11.5
 	github.com/onsi/gomega v1.27.6
-	github.com/openshift/api v0.0.0-20200713203337-b2494ecb17dd
+	github.com/openshift/api v0.0.0-20200929171550-c99a4deebbe5
 	github.com/pires/go-proxyproto v0.7.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/prometheus/client_golang v1.14.0
@@ -89,7 +92,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.11.2
 	istio.io/api v0.0.0-20230524015941-fa6c5f7916bf
-	istio.io/client-go v1.18.0-rc.0
+	istio.io/client-go v1.18.0
 	istio.io/pkg v0.0.0-20230524020242-1015535057be
 	k8s.io/api v0.27.0
 	k8s.io/apiextensions-apiserver v0.27.0
