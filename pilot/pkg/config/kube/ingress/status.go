@@ -58,18 +58,23 @@ func (s *StatusSyncer) Run(stopCh <-chan struct{}) {
 // NewStatusSyncer creates a new instance
 func NewStatusSyncer(meshHolder mesh.Watcher, kc kubelib.Client, options kubecontroller.Options) *StatusSyncer {
 	c := &StatusSyncer{
-		meshConfig:     meshHolder,
-		ingresses:      kclient.NewFiltered[*knetworking.Ingress](kc, kclient.Filter{ObjectFilter: options.GetFilter()}),
-		ingressClasses: kclient.New[*knetworking.IngressClass](kc),
+		meshConfig: meshHolder,
+		ingresses:  kclient.NewFiltered[*knetworking.Ingress](kc, kclient.Filter{ObjectFilter: options.GetFilter()}),
 		pods: kclient.NewFiltered[*corev1.Pod](kc, kclient.Filter{
 			ObjectFilter:    options.GetFilter(),
 			ObjectTransform: kubelib.StripPodUnusedFields,
 		}),
 		services: kclient.NewFiltered[*corev1.Service](kc, kclient.Filter{ObjectFilter: options.GetFilter()}),
-		nodes: kclient.NewFiltered[*corev1.Node](kc, kclient.Filter{
-			ObjectTransform: kubelib.StripNodeUnusedFields,
-		}),
 	}
+	if options.EnableIngressClassName {
+		c.ingressClasses = kclient.New[*knetworking.IngressClass](kc)
+	}
+	if options.EnableNodeAccess {
+		c.nodes = kclient.NewFiltered[*corev1.Node](kc, kclient.Filter{
+			ObjectTransform: kubelib.StripNodeUnusedFields,
+		})
+	}
+
 	c.queue = controllers.NewQueue("ingress status",
 		controllers.WithReconciler(c.Reconcile),
 		controllers.WithMaxAttempts(5))
@@ -144,7 +149,7 @@ func (s *StatusSyncer) runningAddresses() []string {
 
 	for _, pod := range igPods {
 		// only Running pods are valid
-		if pod.Status.Phase != corev1.PodRunning {
+		if pod.Status.Phase != corev1.PodRunning || s.nodes == nil {
 			continue
 		}
 
