@@ -114,9 +114,6 @@ func Install(opts InstallationOptions) resource.SetupFn {
 		if err != nil {
 			return err
 		}
-		if err := ctx.Clusters().Default().ApplyYAMLFiles("", filepath.Join(env.IstioSrc, "tests/integration/servicemesh/testdata/clusterrole.yaml")); err != nil {
-			return err
-		}
 		if err := applyRolesToMemberNamespaces(ctx.Clusters().Default(), "istio-system"); err != nil {
 			return err
 		}
