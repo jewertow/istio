@@ -951,8 +951,8 @@ func runTestBuildGatewayListenerTLSContext(t *testing.T, expectedTLSParam *auth.
 							SdsConfig: model.SDSAdsConfig,
 						},
 					},
-					//TODO(jewertow)
-					//TlsParams: expectedTLSParam,
+					// TODO(jewertow)
+					// TlsParams: expectedTLSParam,
 				},
 				RequireClientCertificate: proto.BoolFalse,
 			},
