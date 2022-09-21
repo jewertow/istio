@@ -428,7 +428,6 @@ func newClientInternal(clientFactory *clientFactory, revision string) (*client, 
 	c.kubeInformer = xnskubeinformer.NewSharedInformerFactoryWithOptions(
 		c.kube,
 		resyncInterval,
-		xnskubeinformer.WithNamespaces(), // Maistra needs to start with an empty namespace set.
 	)
 
 	c.metadata, err = metadata.NewForConfig(c.config)
@@ -442,7 +441,6 @@ func newClientInternal(clientFactory *clientFactory, revision string) (*client, 
 		return nil, err
 	}
 	c.dynamicInformer = xnsinformers.NewDynamicSharedInformerFactory(c.dynamic, resyncInterval)
-	c.dynamicInformer.SetNamespaces([]string{}) // Maistra needs to start with an empty namespace set.
 
 	c.istio, err = istioclient.NewForConfig(c.config)
 	if err != nil {
@@ -451,7 +449,6 @@ func newClientInternal(clientFactory *clientFactory, revision string) (*client, 
 	c.istioInformer = xnsistioinformer.NewSharedInformerFactoryWithOptions(
 		c.istio,
 		resyncInterval,
-		xnsistioinformer.WithNamespaces(), // Maistra needs to start with an empty namespace set.
 	)
 
 	if features.EnableGatewayAPI {
@@ -462,7 +459,6 @@ func newClientInternal(clientFactory *clientFactory, revision string) (*client, 
 		c.gatewayapiInformer = xnsgatewayapiinformer.NewSharedInformerFactoryWithOptions(
 			c.gatewayapi,
 			resyncInterval,
-			xnsgatewayapiinformer.WithNamespaces(), // Maistra needs to start with an empty namespace set.
 		)
 	}
 
@@ -604,9 +600,6 @@ func (c *client) GetMemberRoll() memberroll.MemberRollController {
 // RunAndWait starts all informers and waits for their caches to sync.
 // Warning: this must be called AFTER .Informer() is called, which will register the informer.
 func (c *client) RunAndWait(stop <-chan struct{}) {
-	// make sure to watch all namespaces if we're not using a MemberRollController
-	c.SetNamespaces([]string{metav1.NamespaceAll})
-
 	c.startInformer(stop)
 
 	if c.fastSync {
