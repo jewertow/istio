@@ -121,7 +121,7 @@ openssl x509 -req -in "${WD}/client.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey 
 
 # Create a DNS client certificate
 openssl genrsa -out "${WD}/dns/key.pem" 2048
-openssl req -new -sha256 -key "${WD}/dns/key.pem" -out "${WD}/dns-client.csr" -subj "/CN=cluster.local" -config "${WD}/dns-client.conf"
+openssl req -new -sha256 -key "${WD}/dns/key.pem" -out "${WD}/dns-client.csr" -subj "/CN=server.default.svc.cluster.local" -config "${WD}/dns-client.conf"
 openssl x509 -req -in "${WD}/dns-client.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey "${WD}/pilot/ca-key.pem" -CAcreateserial -out "${WD}/dns/cert-chain.pem" -days 100000 -extensions v3_req -extfile "${WD}/dns-client.conf"
 
 # Create a server certificate for MountedCerts test
