@@ -126,12 +126,12 @@ openssl x509 -req -in "${WD}/dns-client.csr" -CA "${WD}/pilot/root-cert.pem" -CA
 
 # Create a server certificate for MountedCerts test
 openssl genrsa -out "${WD}/mountedcerts-server/key.pem" 2048
-openssl req -new -sha256 -key "${WD}/mountedcerts-server/key.pem" -out "${WD}/mountedcerts-server.csr" -subj "/CN=cluster.local" -config "${WD}/mountedcerts-server.conf"
+openssl req -new -sha256 -key "${WD}/mountedcerts-server/key.pem" -out "${WD}/mountedcerts-server.csr" -subj "/CN=server.mounted-certs.svc.cluster.local" -config "${WD}/mountedcerts-server.conf"
 openssl x509 -req -in "${WD}/mountedcerts-server.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey "${WD}/pilot/ca-key.pem" -CAcreateserial -out "${WD}/mountedcerts-server/cert-chain.pem" -days 100000 -extensions v3_req -extfile "${WD}/mountedcerts-server.conf"
 
 # Create a client certificate for MountedCerts test
 openssl genrsa -out "${WD}/mountedcerts-client/key.pem" 2048
-openssl req -new -sha256 -key "${WD}/mountedcerts-client/key.pem" -out "${WD}/mountedcerts-client.csr" -subj "/CN=cluster.local" -config "${WD}/mountedcerts-client.conf"
+openssl req -new -sha256 -key "${WD}/mountedcerts-client/key.pem" -out "${WD}/mountedcerts-client.csr" -subj "/CN=client.mounted-certs.svc.cluster.local" -config "${WD}/mountedcerts-client.conf"
 openssl x509 -req -in "${WD}/mountedcerts-client.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey "${WD}/pilot/ca-key.pem" -CAcreateserial -out "${WD}/mountedcerts-client/cert-chain.pem" -days 100000 -extensions v3_req -extfile "${WD}/mountedcerts-client.conf"
 
 
