@@ -111,12 +111,12 @@ cp "${WD}/pilot/root-cert.pem" "${WD}/mountedcerts-client/root-cert.pem"
 
 # Create a server certificate
 openssl genrsa -out "${WD}/pilot/key.pem" 2048
-openssl req -new -sha256 -key "${WD}/pilot/key.pem" -out "${WD}/server.csr" -subj "/CN=cluster.local" -config "${WD}/server.conf"
+openssl req -new -sha256 -key "${WD}/pilot/key.pem" -out "${WD}/server.csr" -subj "/CN=istiod.istio-system.svc.cluster.local" -config "${WD}/server.conf"
 openssl x509 -req -in "${WD}/server.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey "${WD}/pilot/ca-key.pem" -CAcreateserial -out "${WD}/pilot/cert-chain.pem"  -days 100000 -extensions v3_req -extfile "${WD}/server.conf"
 
 # Create a client certificate
 openssl genrsa -out "${WD}/default/key.pem" 2048
-openssl req -new -sha256 -key "${WD}/default/key.pem" -out "${WD}/client.csr" -subj "/CN=cluster.local" -config "${WD}/client.conf"
+openssl req -new -sha256 -key "${WD}/default/key.pem" -out "${WD}/client.csr" -subj "/CN=default.default.svc.cluster.local" -config "${WD}/client.conf"
 openssl x509 -req -in "${WD}/client.csr" -CA "${WD}/pilot/root-cert.pem" -CAkey "${WD}/pilot/ca-key.pem" -CAcreateserial -out "${WD}/default/cert-chain.pem" -days 100000 -extensions v3_req -extfile "${WD}/client.conf"
 
 # Create a DNS client certificate
