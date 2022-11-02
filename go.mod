@@ -8,7 +8,7 @@ exclude k8s.io/kubernetes v1.13.0
 // Client-go does not handle different versions of mergo due to some breaking changes - use the matching version
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
-replace github.com/maistra/xns-informer v0.0.0-20230622115340-648631dad831 => github.com/jewertow/xns-informer v0.0.0-20230629222124-8bae464547d2
+replace maistra.io/api v0.0.0-20221103173341-6ef6ed929778 => github.com/maistra/api v0.0.0-20230704084350-dfc96815fb16
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
@@ -53,7 +53,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lestrrat-go/jwx v1.2.25
-	github.com/maistra/xns-informer v0.0.0-20230622115340-648631dad831
+	github.com/maistra/xns-informer v0.0.0-20230704082311-af56b540dc35
 	github.com/mattn/go-isatty v0.0.18
 	github.com/miekg/dns v1.1.53
 	github.com/mitchellh/copystructure v1.2.0
@@ -104,6 +104,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20230327201221-f5883ff37f0c
 	k8s.io/kubectl v0.27.0
 	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749
+	maistra.io/api v0.0.0-20221103173341-6ef6ed929778
 	sigs.k8s.io/controller-runtime v0.13.1-0.20230315234915-a26de2d610c3
 	sigs.k8s.io/gateway-api v0.6.2
 	sigs.k8s.io/mcs-api v0.1.0
