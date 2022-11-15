@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/keycertbundle"
@@ -126,7 +127,12 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 
 // Run starts the NamespaceController until a value is sent to stopCh.
 func (nc *NamespaceController) Run(stopCh <-chan struct{}) {
-	if !kube.WaitForCacheSync(stopCh, nc.namespaces.HasSynced, nc.configmaps.HasSynced) {
+	syncFuncs := []cache.InformerSynced{nc.configmaps.HasSynced}
+	// nc.namespaces is not set when member roll exists
+	if nc.namespaces != nil {
+		syncFuncs = append(syncFuncs, nc.namespaces.HasSynced)
+	}
+	if !kube.WaitForCacheSync(stopCh, syncFuncs...) {
 		log.Error("Failed to sync namespace controller cache")
 		return
 	}
