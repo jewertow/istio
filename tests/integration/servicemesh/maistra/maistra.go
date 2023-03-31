@@ -76,11 +76,24 @@ func ApplyServiceMeshCRDs(ctx resource.Context) (err error) {
 	return err
 }
 
-func ApplyGatewayAPICRDs() resource.SetupFn {
+func CleanupGatewayAPICRDs() resource.SetupFn {
+	return func(ctx resource.Context) error {
+		for _, c := range ctx.Clusters() {
+			if err := c.DeleteYAMLFiles(
+				"", filepath.Join(env.IstioSrc, "tests/integration/pilot/testdata/gateway-api-crd.yaml"),
+			); err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func ApplyGatewayAPICRDs(version string) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		for _, c := range ctx.Clusters() {
 			if err := c.ApplyYAMLFiles(
-				"", filepath.Join(env.IstioSrc, "tests/integration/pilot/testdata/gateway-api-crd.yaml"),
+				"", filepath.Join(env.IstioSrc, "tests/integration/servicemesh/maistra/testdata/gateway-api-crd-"+version+".yaml"),
 			); err != nil {
 				return err
 			}
