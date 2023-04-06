@@ -148,8 +148,14 @@ func (nc *NamespaceController) startCaBundleWatcher(stop <-chan struct{}) {
 	for {
 		select {
 		case <-watchCh:
-			for _, ns := range nc.namespaces.List("", labels.Everything()) {
-				nc.namespaceChange(ns)
+			if nc.namespaceSet != nil {
+				for _, ns := range nc.namespaceSet.List() {
+					nc.syncNamespaceByName(ns)
+				}
+			} else {
+				for _, ns := range nc.namespaces.List("", labels.Everything()) {
+					nc.namespaceChange(ns)
+				}
 			}
 		case <-stop:
 			return
@@ -191,12 +197,13 @@ func (nc *NamespaceController) syncNamespace(ns *v1.Namespace) {
 	if nc.DiscoveryNamespacesFilter != nil && !nc.DiscoveryNamespacesFilter.FilterNamespace(ns.ObjectMeta) {
 		return
 	}
+	nc.queue.Add(types.NamespacedName{Name: ns.Name})
+}
 
-	// If a MemberRoll controller is in use, and the set of
-	// namespaces still includes the one for this ConfigMap,
-	// then recreate the ConfigMap, otherwise do nothing.
-	if nc.namespaceSet != nil && !nc.namespaceSet.Contains(ns.Name) {
+func (nc *NamespaceController) syncNamespaceByName(ns string) {
+	// skip special kubernetes system namespaces
+	if inject.IgnoredNamespaces.Contains(ns) {
 		return
 	}
-	nc.queue.Add(types.NamespacedName{Name: ns.Name})
+	nc.queue.Add(types.NamespacedName{Name: ns})
 }
