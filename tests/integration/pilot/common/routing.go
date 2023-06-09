@@ -51,6 +51,19 @@ import (
 	ingressutil "istio.io/istio/tests/integration/security/sds_ingress/util"
 )
 
+const originateTlsTmpl = `
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: "{{.VirtualServiceHost|replace "*" "wild"}}"
+spec:
+  host: "{{.VirtualServiceHost}}"
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+---
+`
+
 const httpVirtualServiceTmpl = `
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -998,7 +1011,7 @@ spec:
 }
 
 func gatewayCases() []TrafficTestCase {
-	templateParams := func(protocol protocol.Instance, src echo.Callers, dests echo.Instances, ciphers []string) map[string]interface{} {
+	templateParams := func(protocol protocol.Instance, src echo.Callers, dests echo.Instances, ciphers []string, port string) map[string]interface{} {
 		hostName, dest, portN, cred := "*", dests[0], 80, ""
 		if protocol.IsTLS() {
 			hostName, portN, cred = dest.Config().ClusterLocalFQDN(), 443, "cred"
@@ -1011,7 +1024,7 @@ func gatewayCases() []TrafficTestCase {
 			"GatewayProtocol":    string(protocol),
 			"Gateway":            "gateway",
 			"VirtualServiceHost": dest.Config().ClusterLocalFQDN(),
-			"Port":               dest.PortForName("http").ServicePort,
+			"Port":               dest.PortForName(port).ServicePort,
 			"Credential":         cred,
 			"Ciphers":            ciphers,
 		}
@@ -1161,7 +1174,7 @@ spec:
 			templateVars: func(src echo.Callers, dests echo.Instances) map[string]interface{} {
 				// Test all cipher suites, including a fake one. Envoy should accept all of the ones on the "valid" list,
 				// and control plane should filter our invalid one.
-				return templateParams(protocol.HTTPS, src, dests, append(security.ValidCipherSuites.SortedList(), "fake"))
+				return templateParams(protocol.HTTPS, src, dests, append(security.ValidCipherSuites.SortedList(), "fake"), "http")
 			},
 			setupOpts: fqdnHostHeader,
 			opts: echo.CallOptions{
@@ -1446,7 +1459,7 @@ spec:
 				name:   string(proto),
 				config: gatewayTmpl + httpVirtualServiceTmpl + secret,
 				templateVars: func(src echo.Callers, dests echo.Instances) map[string]interface{} {
-					return templateParams(proto, src, dests, nil)
+					return templateParams(proto, src, dests, nil, "http")
 				},
 				setupOpts: fqdnHostHeader,
 				opts: echo.CallOptions{
@@ -1462,7 +1475,7 @@ spec:
 				name:   fmt.Sprintf("%s scheme match", proto),
 				config: gatewayTmpl + httpVirtualServiceTmpl + secret,
 				templateVars: func(src echo.Callers, dests echo.Instances) map[string]interface{} {
-					params := templateParams(proto, src, dests, nil)
+					params := templateParams(proto, src, dests, nil, "http")
 					params["MatchScheme"] = strings.ToLower(string(proto))
 					return params
 				},
@@ -1483,6 +1496,25 @@ spec:
 			},
 		)
 	}
+
+	secret := ingressutil.IngressKubeSecretYAML("cred", "{{.IngressNamespace}}", ingressutil.TLS, ingressutil.IngressCredentialA)
+	cases = append(cases, TrafficTestCase{
+		name:   "HTTPS re-encrypt",
+		config: gatewayTmpl + httpVirtualServiceTmpl + originateTlsTmpl + secret,
+		templateVars: func(src echo.Callers, dests echo.Instances) map[string]interface{} {
+			return templateParams(protocol.HTTPS, src, dests, nil, "https")
+		},
+		setupOpts: fqdnHostHeader,
+		opts: echo.CallOptions{
+			Count: 1,
+			Port: echo.Port{
+				Protocol: protocol.HTTPS,
+			},
+			Check: check.OK(),
+		},
+		viaIngress:       true,
+		workloadAgnostic: true,
+	})
 
 	return cases
 }
@@ -1750,15 +1782,15 @@ func hostCases(apps *deployment.SingleNamespaceView) ([]TrafficTestCase, error) 
 
 // serviceCases tests overlapping Services. There are a few cases.
 // Consider we have our base service B, with service port P and target port T
-// 1) Another service, B', with P -> T. In this case, both the listener and the cluster will conflict.
-//    Because everything is workload oriented, this is not a problem unless they try to make them different
-//    protocols (this is explicitly called out as "not supported") or control inbound connectionPool settings
-//    (which is moving to Sidecar soon)
-// 2) Another service, B', with P -> T'. In this case, the listener will be distinct, since its based on the target.
-//    The cluster, however, will be shared, which is broken, because we should be forwarding to T when we call B, and T' when we call B'.
-// 3) Another service, B', with P' -> T. In this case, the listener is shared. This is fine, with the exception of different protocols
-//    The cluster is distinct.
-// 4) Another service, B', with P' -> T'. There is no conflicts here at all.
+//  1. Another service, B', with P -> T. In this case, both the listener and the cluster will conflict.
+//     Because everything is workload oriented, this is not a problem unless they try to make them different
+//     protocols (this is explicitly called out as "not supported") or control inbound connectionPool settings
+//     (which is moving to Sidecar soon)
+//  2. Another service, B', with P -> T'. In this case, the listener will be distinct, since its based on the target.
+//     The cluster, however, will be shared, which is broken, because we should be forwarding to T when we call B, and T' when we call B'.
+//  3. Another service, B', with P' -> T. In this case, the listener is shared. This is fine, with the exception of different protocols
+//     The cluster is distinct.
+//  4. Another service, B', with P' -> T'. There is no conflicts here at all.
 func serviceCases(apps *deployment.SingleNamespaceView) []TrafficTestCase {
 	var cases []TrafficTestCase
 	for _, c := range apps.A {
