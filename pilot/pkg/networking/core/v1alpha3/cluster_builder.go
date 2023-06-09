@@ -277,6 +277,13 @@ func (cb *ClusterBuilder) applyDestinationRule(mc *MutableCluster, clusterMode C
 
 	if destRule != nil {
 		mc.cluster.Metadata = util.AddConfigInfoMetadata(mc.cluster.Metadata, destRule.Meta)
+
+		// ALPN header rewrite starts mTLS. Skip if TLS mode is SIMPLE.
+		trafficPolicy := destinationRule.GetTrafficPolicy()
+		if trafficPolicy != nil && trafficPolicy.Tls != nil {
+			alpnOverride := trafficPolicy.Tls.Mode != networking.ClientTLSSettings_SIMPLE
+			mc.cluster.Metadata = util.AddALPNOverrideToMetadata(mc.cluster.Metadata, alpnOverride)
+		}
 	}
 	subsetClusters := make([]*cluster.Cluster, 0)
 	for _, subset := range destinationRule.GetSubsets() {

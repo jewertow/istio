@@ -596,6 +596,137 @@ func TestAddSubsetToMetadata(t *testing.T) {
 	}
 }
 
+func TestAddALPNOverrideToMetadata(t *testing.T) {
+	cases := []struct {
+		name         string
+		alpnOverride bool
+		meta         *core.Metadata
+		want         *core.Metadata
+	}{
+		{
+			"nil metadata",
+			true,
+			nil,
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					IstioMetadataKey: {
+						Fields: map[string]*structpb.Value{
+							"alpn_override": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "true",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			"empty metadata",
+			true,
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{},
+			},
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					IstioMetadataKey: {
+						Fields: map[string]*structpb.Value{
+							"alpn_override": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "true",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			"existing istio metadata",
+			true,
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					IstioMetadataKey: {
+						Fields: map[string]*structpb.Value{
+							"other-config": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "other-config",
+								},
+							},
+						},
+					},
+				},
+			},
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					IstioMetadataKey: {
+						Fields: map[string]*structpb.Value{
+							"other-config": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "other-config",
+								},
+							},
+							"alpn_override": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "true",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			"existing non-istio metadata",
+			true,
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					"other-metadata": {
+						Fields: map[string]*structpb.Value{
+							"other-config": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "other-config",
+								},
+							},
+						},
+					},
+				},
+			},
+			&core.Metadata{
+				FilterMetadata: map[string]*structpb.Struct{
+					"other-metadata": {
+						Fields: map[string]*structpb.Value{
+							"other-config": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "other-config",
+								},
+							},
+						},
+					},
+					IstioMetadataKey: {
+						Fields: map[string]*structpb.Value{
+							"alpn_override": {
+								Kind: &structpb.Value_StringValue{
+									StringValue: "true",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, v := range cases {
+		t.Run(v.name, func(tt *testing.T) {
+			got := AddALPNOverrideToMetadata(v.meta, v.alpnOverride)
+			if diff := cmp.Diff(got, v.want, protocmp.Transform()); diff != "" {
+				tt.Errorf("AddALPNOverrideToMetadata(%t) produced incorrect result:\ngot: %v\nwant: %v\nDiff: %s", v.alpnOverride, got, v.want, diff)
+			}
+		})
+	}
+}
+
 func TestIsHTTPFilterChain(t *testing.T) {
 	httpFilterChain := &listener.FilterChain{
 		Filters: []*listener.Filter{

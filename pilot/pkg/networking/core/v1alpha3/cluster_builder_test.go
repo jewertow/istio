@@ -454,6 +454,36 @@ func TestApplyDestinationRule(t *testing.T) {
 			},
 			expectedSubsetClusters: []*cluster.Cluster{},
 		},
+		{
+			name:        "destination rule with tls mode SIMPLE",
+			cluster:     &cluster.Cluster{Name: "foo", ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_EDS}},
+			clusterMode: DefaultClusterMode,
+			service:     service,
+			port:        servicePort[0],
+			proxyView:   model.ProxyViewAll,
+			destRule: &networking.DestinationRule{
+				Host: "foo.default.svc.cluster.local",
+				TrafficPolicy: &networking.TrafficPolicy{
+					Tls: &networking.ClientTLSSettings{Mode: networking.ClientTLSSettings_SIMPLE},
+				},
+			},
+			expectedSubsetClusters: []*cluster.Cluster{},
+		},
+		{
+			name:        "destination rule with tls mode ISTIO_MUTUAL",
+			cluster:     &cluster.Cluster{Name: "foo", ClusterDiscoveryType: &cluster.Cluster_Type{Type: cluster.Cluster_EDS}},
+			clusterMode: DefaultClusterMode,
+			service:     service,
+			port:        servicePort[0],
+			proxyView:   model.ProxyViewAll,
+			destRule: &networking.DestinationRule{
+				Host: "foo.default.svc.cluster.local",
+				TrafficPolicy: &networking.TrafficPolicy{
+					Tls: &networking.ClientTLSSettings{Mode: networking.ClientTLSSettings_ISTIO_MUTUAL},
+				},
+			},
+			expectedSubsetClusters: []*cluster.Cluster{},
+		},
 	}
 
 	for _, tt := range cases {
@@ -529,7 +559,26 @@ func TestApplyDestinationRule(t *testing.T) {
 					uint32(tt.destRule.TrafficPolicy.GetConnectionPool().GetHttp().MaxRequestsPerConnection) {
 					t.Errorf("Unexpected max_requests_per_connection found")
 				}
+			}
 
+			// Validate that alpn_override is configured on cluster correctly.
+			if tt.destRule != nil && tt.destRule.TrafficPolicy != nil {
+				md := tt.cluster.Metadata
+				istio, ok := md.FilterMetadata[util.IstioMetadataKey]
+				if !ok {
+					t.Errorf("Istio metadata not found")
+				}
+				if alpnOverride, found := istio.Fields["alpn_override"]; found {
+					if tt.destRule.TrafficPolicy.Tls.Mode == networking.ClientTLSSettings_SIMPLE {
+						if alpnOverride.GetStringValue() != "false" {
+							t.Errorf("alpn_override:%s, should be false for TLS mode SIMPLE", alpnOverride.GetStringValue())
+						}
+					} else {
+						if alpnOverride.GetStringValue() != "true" {
+							t.Errorf("alpn_override:%s, should be true when TLS mode is not SIMPLE", alpnOverride.GetStringValue())
+						}
+					}
+				}
 			}
 
 			// Validate that ORIGINAL_DST cluster does not have load assignments
