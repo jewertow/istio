@@ -112,6 +112,9 @@ func (c TrafficTestCase) RunForApps(t framework.TestContext, apps echo.Instances
 	if optsSpecified && len(c.children) > 0 {
 		t.Fatal("TrafficTestCase: must not specify both opts and children")
 	}
+	if !optsSpecified && len(c.children) == 0 {
+		t.Fatal("TrafficTestCase: must specify either opts or children")
+	}
 
 	job := func(t framework.TestContext) {
 		echoT := echotest.New(t, apps).

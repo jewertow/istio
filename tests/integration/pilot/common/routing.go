@@ -1508,6 +1508,7 @@ spec:
 		opts: echo.CallOptions{
 			Count: 1,
 			Port: echo.Port{
+				Name:     "https",
 				Protocol: protocol.HTTPS,
 			},
 			Check: check.OK(),
