@@ -104,6 +104,7 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 		return c
 	}
 
+	c.namespaces = kclient.New[*v1.Namespace](kubeClient)
 	c.namespaces.AddEventHandler(controllers.FilteredObjectSpecHandler(c.queue.AddObject, func(o controllers.Object) bool {
 		if features.InformerWatchNamespace != "" && features.InformerWatchNamespace != o.GetName() {
 			// We are only watching one namespace, and its not this one
