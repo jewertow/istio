@@ -56,7 +56,6 @@ type NamespaceController struct {
 
 	// if meshConfig.DiscoverySelectors specified, DiscoveryNamespacesFilter tracks the namespaces to be watched by this controller.
 	DiscoveryNamespacesFilter filter.DiscoveryNamespacesFilter
-	usesMemberRollController  bool
 	namespaceSet              xnsinformers.NamespaceSet
 }
 
@@ -92,7 +91,6 @@ func NewNamespaceController(kubeClient kube.Client, caBundleWatcher *keycertbund
 	// If a MemberRoll controller is configured on the client, skip creating the
 	// namespace informer and just respond to changes in the MemberRoll.
 	if mrc := kubeClient.GetMemberRoll(); mrc != nil {
-		c.usesMemberRollController = true
 		c.namespaceSet = xnsinformers.NewNamespaceSet()
 		c.namespaceSet.AddHandler(xnsinformers.NamespaceSetHandlerFuncs{
 			AddFunc: func(ns string) {
@@ -190,7 +188,7 @@ func (nc *NamespaceController) syncNamespace(ns *v1.Namespace) {
 	// If a MemberRoll controller is in use, and the set of
 	// namespaces still includes the one for this ConfigMap,
 	// then recreate the ConfigMap, otherwise do nothing.
-	if nc.usesMemberRollController && !nc.namespaceSet.Contains(ns.Name) {
+	if nc.namespaceSet != nil && !nc.namespaceSet.Contains(ns.Name) {
 		return
 	}
 	nc.queue.Add(types.NamespacedName{Name: ns.Name})

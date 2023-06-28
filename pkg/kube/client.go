@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	istioinformer "istio.io/client-go/pkg/informers/externalversions"
 	"net"
 	"net/http"
 	"os"
@@ -33,7 +32,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	xnsgatewayapiinformer "github.com/maistra/xns-informer/pkg/generated/gatewayapi"
 	xnsistioinformer "github.com/maistra/xns-informer/pkg/generated/istio"
-	kubeinformer "github.com/maistra/xns-informer/pkg/generated/kube"
+	xnskubeinformer "github.com/maistra/xns-informer/pkg/generated/kube"
 	xnsinformers "github.com/maistra/xns-informer/pkg/informers"
 	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
@@ -58,7 +57,9 @@ import (
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
@@ -88,6 +89,7 @@ import (
 	clienttelemetry "istio.io/client-go/pkg/apis/telemetry/v1alpha1"
 	istioclient "istio.io/client-go/pkg/clientset/versioned"
 	istiofake "istio.io/client-go/pkg/clientset/versioned/fake"
+	istioinformer "istio.io/client-go/pkg/informers/externalversions"
 	"istio.io/istio/operator/pkg/apis"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/cluster"
@@ -134,10 +136,10 @@ type Client interface {
 	GatewayAPI() gatewayapiclient.Interface
 
 	// KubeInformer returns an informer for core kube client
-	KubeInformer() kubeinformer.SharedInformerFactory
+	KubeInformer() informers.SharedInformerFactory
 
 	// DynamicInformer returns an informer for dynamic client
-	DynamicInformer() xnsinformers.DynamicSharedInformerFactory
+	DynamicInformer() dynamicinformer.DynamicSharedInformerFactory
 
 	// MetadataInformer returns an informer for metadata client
 	MetadataInformer() metadatainformer.SharedInformerFactory
@@ -160,6 +162,7 @@ type Client interface {
 
 	// GetKubernetesVersion returns the Kubernetes server version
 	GetKubernetesVersion() (*kubeVersion.Info, error)
+
 	// Shutdown closes all informers and waits for them to terminate
 	Shutdown()
 
@@ -264,7 +267,7 @@ func NewFakeClient(objects ...runtime.Object) CLIClient {
 		filters:                map[reflect.Type]kubetypes.Filter{},
 	}
 	c.kube = fake.NewSimpleClientset(objects...)
-	c.kubeInformer = kubeinformer.NewSharedInformerFactory(c.kube, resyncInterval)
+	c.kubeInformer = xnskubeinformer.NewSharedInformerFactory(c.kube, resyncInterval)
 	s := FakeIstioScheme
 
 	c.metadata = metadatafake.NewSimpleMetadataClient(s)
@@ -350,7 +353,7 @@ type client struct {
 	extInformer kubeExtInformers.SharedInformerFactory
 
 	kube         kubernetes.Interface
-	kubeInformer kubeinformer.SharedInformerFactory
+	kubeInformer xnskubeinformer.SharedInformerFactory
 
 	dynamic         dynamic.Interface
 	dynamicInformer xnsinformers.DynamicSharedInformerFactory
@@ -422,10 +425,10 @@ func newClientInternal(clientFactory *clientFactory, revision string) (*client, 
 	if err != nil {
 		return nil, err
 	}
-	c.kubeInformer = kubeinformer.NewSharedInformerFactoryWithOptions(
+	c.kubeInformer = xnskubeinformer.NewSharedInformerFactoryWithOptions(
 		c.kube,
 		resyncInterval,
-		kubeinformer.WithNamespaces(), // Maistra needs to start with an empty namespace set.
+		xnskubeinformer.WithNamespaces(), // Maistra needs to start with an empty namespace set.
 	)
 
 	c.metadata, err = metadata.NewForConfig(c.config)
@@ -540,11 +543,11 @@ func (c *client) GatewayAPI() gatewayapiclient.Interface {
 	return c.gatewayapi
 }
 
-func (c *client) KubeInformer() kubeinformer.SharedInformerFactory {
+func (c *client) KubeInformer() informers.SharedInformerFactory {
 	return c.kubeInformer
 }
 
-func (c *client) DynamicInformer() xnsinformers.DynamicSharedInformerFactory {
+func (c *client) DynamicInformer() dynamicinformer.DynamicSharedInformerFactory {
 	return c.dynamicInformer
 }
 
@@ -642,10 +645,10 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 }
 
 func (c *client) Shutdown() {
+	c.kubeInformer.Shutdown()
 	// TODO: use these once they are implemented
 	// c.dynamicInformer.Shutdown()
 	// c.metadataInformer.Shutdown()
-	c.kubeInformer.Shutdown()
 	c.istioInformer.Shutdown()
 	c.gatewayapiInformer.Shutdown()
 	c.extInformer.Shutdown()

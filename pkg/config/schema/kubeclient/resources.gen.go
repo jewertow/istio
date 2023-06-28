@@ -6,7 +6,6 @@ package kubeclient
 import (
 	"context"
 	"fmt"
-	kubeinformer "github.com/maistra/xns-informer/pkg/generated/kube"
 	"time"
 
 	k8sioapiadmissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
@@ -61,7 +61,7 @@ type ClientGetter interface {
 	GatewayAPI() gatewayapiclient.Interface
 
 	// KubeInformer returns an informer for core kube client
-	KubeInformer() kubeinformer.SharedInformerFactory
+	KubeInformer() informers.SharedInformerFactory
 
 	// IstioInformer returns an informer for the istio client
 	IstioInformer() istioinformer.SharedInformerFactory

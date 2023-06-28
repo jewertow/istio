@@ -122,8 +122,8 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	gatewayapiinformer "github.com/maistra/xns-informer/pkg/generated/gatewayapi"
-	kubeinformer "github.com/maistra/xns-informer/pkg/generated/kube"
+	gatewayapiinformer "sigs.k8s.io/gateway-api/pkg/client/informers/externalversions"
+	"k8s.io/client-go/informers"
 	istioinformer "istio.io/client-go/pkg/informers/externalversions"
 	kubeextinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	ktypes "istio.io/istio/pkg/kube/kubetypes"
@@ -346,7 +346,7 @@ type ClientGetter interface {
 	GatewayAPI() gatewayapiclient.Interface
 
 	// KubeInformer returns an informer for core kube client
-	KubeInformer() kubeinformer.SharedInformerFactory
+	KubeInformer() informers.SharedInformerFactory
 
 	// IstioInformer returns an informer for the istio client
 	IstioInformer() istioinformer.SharedInformerFactory
