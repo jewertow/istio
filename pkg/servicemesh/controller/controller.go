@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
@@ -100,7 +101,9 @@ func (smmrc *serviceMeshMemberRollController) Register(listener MemberRollListen
 	// ensure listener has no namespaces until the smmrc initializes it with the actual list of namespaces in the member roll
 	listener.SetNamespaces(nil)
 
-	smmrc.informer.AddEventHandler(smmrc.newServiceMeshMemberRollListener(listener, name))
+	if _, err := smmrc.informer.AddEventHandler(smmrc.newServiceMeshMemberRollListener(listener, name)); err != nil {
+		smmrLog.Errorf("Failed to register MemberRollListener %s: %s", name, err)
+	}
 }
 
 func (smmrc *serviceMeshMemberRollController) getNamespaces(namespaces []string) []string {
@@ -137,7 +140,7 @@ func (smmrc *serviceMeshMemberRollController) newServiceMeshMemberRollListener(l
 	// This instead waits for the informer's cache to sync, then sends an
 	// initial update only if the expected SMMR is not found in the cache.
 	go func() {
-		_ = wait.PollImmediateInfinite(100*time.Millisecond, func() (done bool, err error) {
+		_ = wait.PollUntilContextCancel(context.Background(), 100*time.Millisecond, true, func(ctx context.Context) (done bool, err error) {
 			smmrc.cacheLock.RLock()
 			defer smmrc.cacheLock.RUnlock()
 
