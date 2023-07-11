@@ -138,7 +138,11 @@ func (nc *NamespaceController) Run(stopCh <-chan struct{}) {
 	}
 	go nc.startCaBundleWatcher(stopCh)
 	nc.queue.Run(stopCh)
-	controllers.ShutdownAll(nc.configmaps, nc.namespaces)
+	shutdownFuncs := []controllers.Shutdowner{nc.configmaps}
+	if nc.namespaces != nil {
+		shutdownFuncs = append(shutdownFuncs, nc.namespaces)
+	}
+	controllers.ShutdownAll(shutdownFuncs...)
 }
 
 // startCaBundleWatcher listens for updates to the CA bundle and update cm in each namespace
