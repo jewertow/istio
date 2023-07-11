@@ -123,7 +123,11 @@ func (c *controller) Run(stop <-chan struct{}) {
 	}
 	kube.WaitForCacheSync(stop, syncFuncs...)
 	c.queue.Run(stop)
-	controllers.ShutdownAll(c.ingress, c.services, c.classes)
+	shutdownFuncs := []controllers.Shutdowner{c.ingress, c.services}
+	if c.classes != nil {
+		shutdownFuncs = append(shutdownFuncs, c.classes)
+	}
+	controllers.ShutdownAll(shutdownFuncs...)
 }
 
 func (c *controller) shouldProcessIngress(mesh *meshconfig.MeshConfig, i *knetworking.Ingress) bool {

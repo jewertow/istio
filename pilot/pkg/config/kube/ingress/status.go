@@ -52,7 +52,14 @@ type StatusSyncer struct {
 // Run the syncer until stopCh is closed
 func (s *StatusSyncer) Run(stopCh <-chan struct{}) {
 	s.queue.Run(stopCh)
-	controllers.ShutdownAll(s.services, s.nodes, s.pods, s.ingressClasses, s.ingresses)
+	shutdownFuncs := []controllers.Shutdowner{s.services, s.pods, s.ingresses}
+	if s.ingressClasses != nil {
+		shutdownFuncs = append(shutdownFuncs, s.ingressClasses)
+	}
+	if s.nodes != nil {
+		shutdownFuncs = append(shutdownFuncs, s.nodes)
+	}
+	controllers.ShutdownAll(s.services, s.pods, s.ingresses)
 }
 
 // NewStatusSyncer creates a new instance
