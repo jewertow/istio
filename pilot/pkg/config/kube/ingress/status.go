@@ -59,7 +59,7 @@ func (s *StatusSyncer) Run(stopCh <-chan struct{}) {
 	if s.nodes != nil {
 		shutdownFuncs = append(shutdownFuncs, s.nodes)
 	}
-	controllers.ShutdownAll(s.services, s.pods, s.ingresses)
+	controllers.ShutdownAll(shutdownFuncs...)
 }
 
 // NewStatusSyncer creates a new instance
