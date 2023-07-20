@@ -84,13 +84,14 @@ func Install(istioNs namespace.Getter) resource.SetupFn {
 		cfg.Values["global.istioNamespace"] = istioNs.Get().Name()
 		cfg.ControlPlaneValues = fmt.Sprintf(`
 namespace: %[1]s
+revision: %[1]s
 components:
   pilot:
     k8s:
       overlays:
       - apiVersion: apps/v1
         kind: Deployment
-        name: istiod
+        name: istiod-%[1]s
         patches:
         - path: spec.template.spec.containers.[name:discovery].args[-1]
           value: "--memberRollName=default"
@@ -113,26 +114,31 @@ values:
 	})
 }
 
+func RemoveDefaultRBAC(ctx resource.Context) error {
+	kubeClient := ctx.Clusters().Default().Kube()
+	if err := kubeClient.RbacV1().ClusterRoleBindings().DeleteCollection(
+		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istio-reader"}); err != nil {
+		return err
+	}
+	if err := kubeClient.RbacV1().ClusterRoles().DeleteCollection(
+		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istio-reader"}); err != nil {
+		return err
+	}
+	if err := kubeClient.RbacV1().ClusterRoleBindings().DeleteCollection(
+		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istiod"}); err != nil {
+		return err
+	}
+	if err := kubeClient.RbacV1().ClusterRoles().DeleteCollection(
+		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istiod"}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func ApplyRestrictedRBAC(istioNs namespace.Getter) resource.SetupFn {
 	return func(ctx resource.Context) error {
-		kubeClient := ctx.Clusters().Default().Kube()
-		if err := kubeClient.RbacV1().ClusterRoleBindings().DeleteCollection(
-			context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istio-reader"}); err != nil {
-			return err
-		}
-		if err := kubeClient.RbacV1().ClusterRoles().DeleteCollection(
-			context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istio-reader"}); err != nil {
-			return err
-		}
-		if err := kubeClient.RbacV1().ClusterRoleBindings().DeleteCollection(
-			context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istiod"}); err != nil {
-			return err
-		}
-		if err := kubeClient.RbacV1().ClusterRoles().DeleteCollection(
-			context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: "app=istiod"}); err != nil {
-			return err
-		}
-		if err := ctx.ConfigIstio().EvalFile(istioNs.Get().Name(), map[string]string{"istioNamespace": istioNs.Get().Name()}, clusterRoles).Apply(); err != nil {
+		if err := ctx.ConfigIstio().EvalFile(
+			istioNs.Get().Name(), map[string]string{"istioNamespace": istioNs.Get().Name()}, clusterRoles).Apply(); err != nil {
 			return err
 		}
 		if err := applyRolesToMemberNamespaces(ctx.ConfigIstio(), istioNs.Get().Name(), istioNs.Get().Name()); err != nil {
@@ -161,7 +167,7 @@ func DisableWebhooksAndRestart(istioNs namespace.Getter) resource.SetupFn {
 
 func waitForIstiod(kubeClient kubernetes.Interface, istioNamespace string, lastSeenGeneration *int64) error {
 	err := retry.UntilSuccess(func() error {
-		istiod, err := kubeClient.AppsV1().Deployments(istioNamespace).Get(context.TODO(), "istiod", metav1.GetOptions{})
+		istiod, err := kubeClient.AppsV1().Deployments(istioNamespace).Get(context.TODO(), "istiod-"+istioNamespace, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get istiod deployment: %v", err)
 		}
@@ -198,7 +204,7 @@ func patchIstiodArgs(kubeClient kubernetes.Interface, istioNamespace string) err
 ]`
 	return retry.UntilSuccess(func() error {
 		_, err := kubeClient.AppsV1().Deployments(istioNamespace).
-			Patch(context.TODO(), "istiod", types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+			Patch(context.TODO(), "istiod-"+istioNamespace, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to patch istiod deployment: %v", err)
 		}

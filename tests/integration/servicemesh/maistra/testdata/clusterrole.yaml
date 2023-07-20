@@ -30,5 +30,5 @@ roleRef:
   name: istiod-clusterrole-{{ .istioNamespace }}
 subjects:
 - kind: ServiceAccount
-  name: istiod
+  name: istiod-{{ .istioNamespace }}
   namespace: {{ .istioNamespace }}
