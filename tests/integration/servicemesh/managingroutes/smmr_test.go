@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package servicemesh
+package managingroutes
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 	"istio.io/istio/tests/integration/servicemesh/maistra"
 )
 
-func TestSMMR(t *testing.T) {
+func TestManagingGateways(t *testing.T) {
 	framework.NewTest(t).
 		Run(func(ctx framework.TestContext) {
 			namespaceGateway := namespace.NewOrFail(ctx, ctx, namespace.Config{Prefix: "gateway", Inject: true}).Name()
