@@ -41,33 +41,33 @@ func TestSMMR(t *testing.T) {
 			applyVirtualServiceOrFail(ctx, namespaceA, namespaceGateway, "a")
 			applyVirtualServiceOrFail(ctx, namespaceB, namespaceGateway, "b")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, namespaceGateway, namespaceA); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceA); err != nil {
 				ctx.Fatalf("failed to create ServiceMeshMemberRoll: %s", err)
 			}
-			verifyThatIngressHasVirtualHostForMember(ctx, "a")
+			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "a")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, namespaceGateway, namespaceA, namespaceB); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceA, namespaceB); err != nil {
 				ctx.Fatalf("failed to add member to ServiceMeshMemberRoll: %s", err)
 			}
-			verifyThatIngressHasVirtualHostForMember(ctx, "a", "b")
+			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "a", "b")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, namespaceGateway, namespaceB); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceB); err != nil {
 				ctx.Fatalf("failed to create ServiceMeshMemberRoll: %s", err)
 			}
-			verifyThatIngressHasVirtualHostForMember(ctx, "b")
+			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "b")
 		})
 }
 
-func verifyThatIngressHasVirtualHostForMember(ctx framework.TestContext, expectedMembers ...string) {
+func verifyThatIngressHasVirtualHostForMember(ctx framework.TestContext, istioNamespace string, expectedMembers ...string) {
 	expectedGatewayRouteName := "http.8080"
 	expectedVirtualHostsNum := len(expectedMembers)
 
 	retry.UntilSuccessOrFail(ctx, func() error {
-		podName, err := getPodName(ctx, "istio-system", "istio-ingressgateway")
+		podName, err := getPodName(ctx, istioNamespace, "istio-ingressgateway")
 		if err != nil {
 			return err
 		}
-		routes, err := getRoutesFromProxy(ctx, podName, "istio-system", expectedGatewayRouteName)
+		routes, err := getRoutesFromProxy(ctx, podName, istioNamespace, expectedGatewayRouteName)
 		if err != nil {
 			return fmt.Errorf("failed to get routes from proxy %s: %s", podName, err)
 		}
