@@ -41,17 +41,17 @@ func TestManagingGateways(t *testing.T) {
 			applyVirtualServiceOrFail(ctx, namespaceA, namespaceGateway, "a")
 			applyVirtualServiceOrFail(ctx, namespaceB, namespaceGateway, "b")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceA); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace, namespaceGateway, namespaceA); err != nil {
 				ctx.Fatalf("failed to create ServiceMeshMemberRoll: %s", err)
 			}
 			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "a")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceA, namespaceB); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace, namespaceGateway, namespaceA, namespaceB); err != nil {
 				ctx.Fatalf("failed to add member to ServiceMeshMemberRoll: %s", err)
 			}
 			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "a", "b")
 
-			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace.Name(), namespaceGateway, namespaceB); err != nil {
+			if err := maistra.ApplyServiceMeshMemberRoll(ctx, istioNamespace, namespaceGateway, namespaceB); err != nil {
 				ctx.Fatalf("failed to create ServiceMeshMemberRoll: %s", err)
 			}
 			verifyThatIngressHasVirtualHostForMember(ctx, istioNamespace.Name(), "b")

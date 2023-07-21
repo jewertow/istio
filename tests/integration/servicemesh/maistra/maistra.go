@@ -21,6 +21,7 @@ package maistra
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pkg/test/framework/components/echo"
 	"path/filepath"
 	"time"
 
@@ -79,19 +80,27 @@ func ApplyServiceMeshCRDs(ctx resource.Context) (err error) {
 }
 
 func Install(istioNs namespace.Getter) resource.SetupFn {
-	return istio.Setup(nil, func(_ resource.Context, cfg *istio.Config) {
+	return istio.Setup(nil, func(ctx resource.Context, cfg *istio.Config) {
+		ctx.Settings().SkipWorkloadClasses = append(ctx.Settings().SkipWorkloadClasses, echo.Delta, echo.Headless, echo.TProxy, echo.VM, echo.External)
+		ctx.Settings().SkipDelta = true
+		ctx.Settings().SkipTProxy = true
+		ctx.Settings().SkipVM = true
+
 		cfg.SystemNamespace = istioNs.Get().Name()
 		cfg.Values["global.istioNamespace"] = istioNs.Get().Name()
 		cfg.ControlPlaneValues = fmt.Sprintf(`
 namespace: %[1]s
-revision: %[1]s
+revision: %[2]s
+meshConfig:
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
 components:
   pilot:
     k8s:
       overlays:
       - apiVersion: apps/v1
         kind: Deployment
-        name: istiod-%[1]s
+        name: istiod-%[2]s
         patches:
         - path: spec.template.spec.containers.[name:discovery].args[-1]
           value: "--memberRollName=default"
@@ -110,7 +119,7 @@ values:
       PILOT_ENABLE_GATEWAY_API_STATUS: false
       PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER: false
       PRIORITIZED_LEADER_ELECTION: false
-`, istioNs.Get().Name())
+`, istioNs.Get().Name(), istioNs.Get().Prefix())
 	})
 }
 
@@ -137,11 +146,14 @@ func RemoveDefaultRBAC(ctx resource.Context) error {
 
 func ApplyRestrictedRBAC(istioNs namespace.Getter) resource.SetupFn {
 	return func(ctx resource.Context) error {
-		if err := ctx.ConfigIstio().EvalFile(
-			istioNs.Get().Name(), map[string]string{"istioNamespace": istioNs.Get().Name()}, clusterRoles).Apply(); err != nil {
+		values := map[string]string{
+			"istioNamespace": istioNs.Get().Name(),
+			"revision":       istioNs.Get().Prefix(),
+		}
+		if err := ctx.ConfigIstio().EvalFile(istioNs.Get().Name(), values, clusterRoles).Apply(); err != nil {
 			return err
 		}
-		if err := applyRolesToMemberNamespaces(ctx.ConfigIstio(), istioNs.Get().Name(), istioNs.Get().Name()); err != nil {
+		if err := applyRolesToMemberNamespaces(ctx.ConfigIstio(), values, istioNs.Get().Name()); err != nil {
 			return err
 		}
 		return nil
@@ -152,22 +164,22 @@ func DisableWebhooksAndRestart(istioNs namespace.Getter) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		kubeClient := ctx.Clusters().Default().Kube()
 		var lastSeenGeneration int64
-		if err := waitForIstiod(kubeClient, istioNs.Get().Name(), &lastSeenGeneration); err != nil {
+		if err := waitForIstiod(kubeClient, istioNs.Get(), &lastSeenGeneration); err != nil {
 			return err
 		}
-		if err := patchIstiodArgs(kubeClient, istioNs.Get().Name()); err != nil {
+		if err := patchIstiodArgs(kubeClient, istioNs.Get()); err != nil {
 			return err
 		}
-		if err := waitForIstiod(kubeClient, istioNs.Get().Name(), &lastSeenGeneration); err != nil {
+		if err := waitForIstiod(kubeClient, istioNs.Get(), &lastSeenGeneration); err != nil {
 			return err
 		}
 		return nil
 	}
 }
 
-func waitForIstiod(kubeClient kubernetes.Interface, istioNamespace string, lastSeenGeneration *int64) error {
+func waitForIstiod(kubeClient kubernetes.Interface, istioNs namespace.Instance, lastSeenGeneration *int64) error {
 	err := retry.UntilSuccess(func() error {
-		istiod, err := kubeClient.AppsV1().Deployments(istioNamespace).Get(context.TODO(), "istiod-"+istioNamespace, metav1.GetOptions{})
+		istiod, err := kubeClient.AppsV1().Deployments(istioNs.Name()).Get(context.TODO(), "istiod-"+istioNs.Prefix(), metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get istiod deployment: %v", err)
 		}
@@ -183,7 +195,7 @@ func waitForIstiod(kubeClient kubernetes.Interface, istioNamespace string, lastS
 	return err
 }
 
-func patchIstiodArgs(kubeClient kubernetes.Interface, istioNamespace string) error {
+func patchIstiodArgs(kubeClient kubernetes.Interface, istioNs namespace.Instance) error {
 	patch := `[
 	{
 		"op": "add",
@@ -203,8 +215,8 @@ func patchIstiodArgs(kubeClient kubernetes.Interface, istioNamespace string) err
 	}
 ]`
 	return retry.UntilSuccess(func() error {
-		_, err := kubeClient.AppsV1().Deployments(istioNamespace).
-			Patch(context.TODO(), "istiod-"+istioNamespace, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+		_, err := kubeClient.AppsV1().Deployments(istioNs.Name()).
+			Patch(context.TODO(), "istiod-"+istioNs.Prefix(), types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to patch istiod deployment: %v", err)
 		}
@@ -212,7 +224,7 @@ func patchIstiodArgs(kubeClient kubernetes.Interface, istioNamespace string) err
 	}, retry.Timeout(10*time.Second), retry.Delay(time.Second))
 }
 
-func ApplyServiceMeshMemberRoll(ctx framework.TestContext, istioNamespace string, memberNamespaces ...string) error {
+func ApplyServiceMeshMemberRoll(ctx framework.TestContext, istioNs namespace.Instance, memberNamespaces ...string) error {
 	memberRollYAML := `
 apiVersion: maistra.io/v1
 kind: ServiceMeshMemberRoll
@@ -225,7 +237,7 @@ spec:
 		memberRollYAML += fmt.Sprintf("  - %s\n", ns)
 	}
 	if err := retry.UntilSuccess(func() error {
-		if err := ctx.ConfigIstio().YAML(istioNamespace, memberRollYAML).Apply(); err != nil {
+		if err := ctx.ConfigIstio().YAML(istioNs.Name(), memberRollYAML).Apply(); err != nil {
 			return fmt.Errorf("failed to apply SMMR resource: %s", err)
 		}
 		return nil
@@ -233,10 +245,14 @@ spec:
 		return err
 	}
 
-	if err := applyRolesToMemberNamespaces(ctx.ConfigIstio(), istioNamespace, memberNamespaces...); err != nil {
+	values := map[string]string{
+		"istioNamespace": istioNs.Name(),
+		"revision":       istioNs.Prefix(),
+	}
+	if err := applyRolesToMemberNamespaces(ctx.ConfigIstio(), values, memberNamespaces...); err != nil {
 		return err
 	}
-	return updateServiceMeshMemberRollStatus(ctx.Clusters().Default(), istioNamespace, memberNamespaces...)
+	return updateServiceMeshMemberRollStatus(ctx.Clusters().Default(), istioNs.Name(), memberNamespaces...)
 }
 
 func updateServiceMeshMemberRollStatus(c cluster.Cluster, istioNamespace string, memberNamespaces ...string) error {
@@ -259,9 +275,9 @@ func updateServiceMeshMemberRollStatus(c cluster.Cluster, istioNamespace string,
 	}, retry.Timeout(10*time.Second))
 }
 
-func applyRolesToMemberNamespaces(c config.Factory, istioNamespace string, namespaces ...string) error {
+func applyRolesToMemberNamespaces(c config.Factory, values map[string]string, namespaces ...string) error {
 	for _, ns := range namespaces {
-		if err := c.EvalFile(ns, map[string]string{"istioNamespace": istioNamespace}, roles, roleBindings).Apply(); err != nil {
+		if err := c.EvalFile(ns, values, roles, roleBindings).Apply(); err != nil {
 			return fmt.Errorf("failed to apply Roles: %s", err)
 		}
 	}
