@@ -50,6 +50,7 @@ var (
 	clusterRoles = filepath.Join(env.IstioSrc, "tests/integration/servicemesh/maistra/testdata/clusterrole.yaml")
 	roles        = filepath.Join(env.IstioSrc, "tests/integration/servicemesh/maistra/testdata/role.yaml")
 	roleBindings = filepath.Join(env.IstioSrc, "tests/integration/servicemesh/maistra/testdata/rolebinding.yaml")
+	smmrTmpl     = filepath.Join(env.IstioSrc, "tests/integration/servicemesh/maistra/testdata/smmr.tmpl.yaml")
 )
 
 func ApplyServiceMeshCRDs(ctx resource.Context) (err error) {
@@ -225,19 +226,8 @@ func patchIstiodArgs(kubeClient kubernetes.Interface, istioNs namespace.Instance
 }
 
 func ApplyServiceMeshMemberRoll(ctx framework.TestContext, istioNs namespace.Instance, memberNamespaces ...string) error {
-	memberRollYAML := `
-apiVersion: maistra.io/v1
-kind: ServiceMeshMemberRoll
-metadata:
-  name: default
-spec:
-  members:
-`
-	for _, ns := range memberNamespaces {
-		memberRollYAML += fmt.Sprintf("  - %s\n", ns)
-	}
 	if err := retry.UntilSuccess(func() error {
-		if err := ctx.ConfigIstio().YAML(istioNs.Name(), memberRollYAML).Apply(); err != nil {
+		if err := ctx.ConfigIstio().EvalFile(istioNs.Name(), map[string][]string{"members": memberNamespaces}, smmrTmpl).Apply(); err != nil {
 			return fmt.Errorf("failed to apply SMMR resource: %s", err)
 		}
 		return nil
