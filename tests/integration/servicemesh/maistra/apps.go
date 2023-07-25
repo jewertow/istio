@@ -34,7 +34,7 @@ func DeployEchos(apps *echo.Instances, namespaces ...namespace.Getter) func(t re
 		echoBuilder := deployment.New(t).WithClusters(t.Clusters()...)
 		for i, ns := range namespaces {
 			echoBuilder = echoBuilder.WithConfig(echo.Config{
-				Service:   fmt.Sprintf("app-%d", i),
+				Service:   fmt.Sprintf("app-%d", i+1),
 				Namespace: ns.Get(),
 				Ports:     ports.All(),
 				Subsets: []echo.SubsetConfig{

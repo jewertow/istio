@@ -20,7 +20,15 @@ package multitenancy
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"istio.io/api/annotation"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/test/env"
@@ -31,12 +39,6 @@ import (
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/util/retry"
 	"istio.io/istio/tests/integration/servicemesh/maistra"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/http"
-	"path/filepath"
-	"sync"
-	"testing"
-	"time"
 )
 
 var (
@@ -58,28 +60,28 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		RequireMaxClusters(1).
 		Setup(maistra.ApplyServiceMeshCRDs).
-		Setup(namespace.Setup(&istioNs1, namespace.Config{Prefix: "istio-system-1"})).
-		Setup(namespace.Setup(&istioNs2, namespace.Config{Prefix: "istio-system-2"})).
-		Setup(maistra.Install(namespace.Future(&istioNs1))).
-		Setup(maistra.Install(namespace.Future(&istioNs2))).
-		// We cannot apply restricted RBAC before the control plane installation, because the operator always applies
-		// the default RBAC, so we have to remove it and apply after the installation.
+		SetupParallel(
+			namespace.Setup(&istioNs1, namespace.Config{Prefix: "istio-system-1"}),
+			namespace.Setup(&istioNs2, namespace.Config{Prefix: "istio-system-2"})).
+		SetupParallel(
+			maistra.Install(namespace.Future(&istioNs1)),
+			maistra.Install(namespace.Future(&istioNs2))).
 		Setup(maistra.RemoveDefaultRBAC).
-		Setup(maistra.ApplyRestrictedRBAC(namespace.Future(&istioNs1))).
-		Setup(maistra.ApplyRestrictedRBAC(namespace.Future(&istioNs2))).
-		// We cannot disable webhooks in maistra.Install(), because then we would need maistra/istio-operator
-		// to properly patch CA bundles in the webhooks. To avoid that problem we restart Istio with disabled webhooks
-		// and without roles for managing webhooks once they are already created and patched.
-		Setup(maistra.DisableWebhooksAndRestart(namespace.Future(&istioNs1))).
-		Setup(maistra.DisableWebhooksAndRestart(namespace.Future(&istioNs2))).
-		// We cannot enable injection in namespaces, because namespaces would have to be included in SMMR,
-		// and we cannot create SMMR before namespaces, because their names are not yet known.
+		SetupParallel(
+			maistra.ApplyRestrictedRBAC(namespace.Future(&istioNs1)),
+			maistra.ApplyRestrictedRBAC(namespace.Future(&istioNs2))).
+		SetupParallel(
+			maistra.DisableWebhooksAndRestart(namespace.Future(&istioNs1)),
+			maistra.DisableWebhooksAndRestart(namespace.Future(&istioNs2))).
 		SetupParallel(
 			namespace.Setup(&appNs1, namespace.Config{Prefix: "app-1-tenant-1"}),
 			namespace.Setup(&appNs2, namespace.Config{Prefix: "app-2-tenant-1"}),
 			namespace.Setup(&appNs3, namespace.Config{Prefix: "app-3-tenant-2"})).
-		Setup(maistra.DeployEchos(&apps,
-			namespace.Future(&appNs1), namespace.Future(&appNs2), namespace.Future(&appNs3))).
+		Setup(
+			maistra.DeployEchos(&apps,
+				namespace.Future(&appNs1),
+				namespace.Future(&appNs2),
+				namespace.Future(&appNs3))).
 		Run()
 }
 
@@ -142,8 +144,7 @@ func TestMultiTenancy(t *testing.T) {
 		})
 
 		ctx.NewSubTest("service entry allows access to an app in another mesh").Run(func(t framework.TestContext) {
-			from := app1
-			to := app3
+			from, to := app1, app3
 
 			values := map[string]string{
 				"svcName":   to.ServiceName(),
