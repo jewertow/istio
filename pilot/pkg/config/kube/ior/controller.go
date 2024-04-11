@@ -130,7 +130,6 @@ func filteredRouteAnnotation(routeAnnotation string) bool {
 	filteredPrefixes := [...]string{
 		ShouldManageRouteAnnotation,
 		"kubectl.kubernetes.io",
-		"argocd.argoproj.io",
 	}
 
 	for _, prefix := range filteredPrefixes {

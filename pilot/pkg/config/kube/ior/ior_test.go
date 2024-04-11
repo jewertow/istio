@@ -93,154 +93,129 @@ func initClients(
 
 func TestCreate(t *testing.T) {
 	cases := []struct {
-		testName       string
-		ns             string
-		hosts          []string
-		gwSelector     map[string]string
-		expectedRoutes int
-		expectedError  string
-		tls            bool
-		annotations    map[string]string
+		testName           string
+		ns                 string
+		hosts              []string
+		gwSelector         map[string]string
+		expectedRoutes     int
+		expectedError      string
+		tls                bool
+		gatewayAnnotations map[string]string
+		routeAnnotations   map[string]string
 	}{
 		{
-			"One host",
-			"istio-system",
-			[]string{"one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "One host",
+			ns:             "istio-system",
+			hosts:          []string{"one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 		{
-			"Two hosts",
-			"istio-system",
-			[]string{"two.org", "three.com"},
-			map[string]string{"istio": "ingressgateway"},
-			2,
-			"",
-			false,
-			nil,
+			testName:       "Two hosts",
+			ns:             "istio-system",
+			hosts:          []string{"two.org", "three.com"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 2,
 		},
 		{
-			"Wildcard 1",
-			"istio-system",
-			[]string{"*"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "Wildcard 1",
+			ns:             "istio-system",
+			hosts:          []string{"*"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 		{
-			"Wildcard 2",
-			"istio-system",
-			[]string{"*.a.com"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "Wildcard 2",
+			ns:             "istio-system",
+			hosts:          []string{"*.a.com"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 		{
-			"Invalid gateway",
-			"istio-system",
-			[]string{"fail.com"},
-			map[string]string{"istio": "nonexistent"},
-			0,
-			"could not find a service that matches the gateway selector `istio=nonexistent'",
-			false,
-			nil,
+			testName:      "Invalid gateway",
+			ns:            "istio-system",
+			hosts:         []string{"fail.com"},
+			gwSelector:    map[string]string{"istio": "nonexistent"},
+			expectedError: "could not find a service that matches the gateway selector `istio=nonexistent'",
 		},
 		{
-			"TLS 1",
-			"istio-system",
-			[]string{"one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			true,
-			nil,
+			testName:       "TLS 1",
+			ns:             "istio-system",
+			hosts:          []string{"one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
+			tls:            true,
 		},
 		{
-			"Gateway not managed",
-			"istio-system",
-			[]string{"notmanaged.org"},
-			map[string]string{"istio": "ingressgateway"},
-			0,
-			"",
-			false,
-			map[string]string{ShouldManageRouteAnnotation: "false", "foo": "bar"},
+			testName:           "Gateway not managed",
+			ns:                 "istio-system",
+			hosts:              []string{"notmanaged.org"},
+			gwSelector:         map[string]string{"istio": "ingressgateway"},
+			gatewayAnnotations: map[string]string{ShouldManageRouteAnnotation: "false", "foo": "bar"},
+			routeAnnotations:   map[string]string{"foo": "bar"},
 		},
 		{
-			"Gateway explicitly managed",
-			"istio-system",
-			[]string{"explicitlymanaged.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			map[string]string{ShouldManageRouteAnnotation: "TRUE", "foo": "bar"},
+			testName:           "Gateway explicitly managed",
+			ns:                 "istio-system",
+			hosts:              []string{"explicitlymanaged.org"},
+			gwSelector:         map[string]string{"istio": "ingressgateway"},
+			expectedRoutes:     1,
+			gatewayAnnotations: map[string]string{ShouldManageRouteAnnotation: "TRUE", "foo": "bar"},
+			routeAnnotations:   map[string]string{originalHostAnnotation: "explicitlymanaged.org", "foo": "bar"},
 		},
 		{
-			"Gateway explicitly managed with an invalid value",
-			"istio-system",
-			[]string{"explicitlymanaged.org"},
-			map[string]string{"istio": "ingressgateway"},
-			0,
-			fmt.Sprintf("could not parse annotation %q:", ShouldManageRouteAnnotation),
-			false,
-			map[string]string{ShouldManageRouteAnnotation: "ABC", "foo": "bar"},
+			testName:           "Gateway explicitly managed with an invalid value",
+			ns:                 "istio-system",
+			hosts:              []string{"explicitlymanaged.org"},
+			gwSelector:         map[string]string{"istio": "ingressgateway"},
+			expectedError:      fmt.Sprintf("could not parse annotation %q:", ShouldManageRouteAnnotation),
+			gatewayAnnotations: map[string]string{ShouldManageRouteAnnotation: "ABC", "foo": "bar"},
+			routeAnnotations:   map[string]string{"foo": "bar"},
 		},
 		{
-			"Egress gateway must be ignored",
-			"istio-system",
-			[]string{"egress.org"},
-			map[string]string{"istio": "egressgateway"},
-			0,
-			"",
-			false,
-			nil,
+			testName:       "ArgoCD annotations should be copied from Gateway to Route",
+			ns:             "istio-system",
+			hosts:          []string{"istio.io"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
+			gatewayAnnotations: map[string]string{"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
+				"kubectl.kubernetes.io/last-applied-configuration": "{}"},
+			routeAnnotations: map[string]string{"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
+				originalHostAnnotation: "istio.io"},
 		},
 		{
-			"Host with all namespaces",
-			"istio-system",
-			[]string{"*/one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:   "Egress gateway must be ignored",
+			ns:         "istio-system",
+			hosts:      []string{"egress.org"},
+			gwSelector: map[string]string{"istio": "egressgateway"},
 		},
 		{
-			"Host with current namespace",
-			"istio-system",
-			[]string{"./one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "Host with all namespaces",
+			ns:             "istio-system",
+			hosts:          []string{"*/one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 		{
-			"Host with a specific namespace",
-			"istio-system",
-			[]string{"ns1/one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "Host with current namespace",
+			ns:             "istio-system",
+			hosts:          []string{"./one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 		{
-			"Host with a namespace and wildcard",
-			"istio-system",
-			[]string{"*/*.one.org"},
-			map[string]string{"istio": "ingressgateway"},
-			1,
-			"",
-			false,
-			nil,
+			testName:       "Host with a specific namespace",
+			ns:             "istio-system",
+			hosts:          []string{"ns1/one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
+		},
+		{
+			testName:       "Host with a namespace and wildcard",
+			ns:             "istio-system",
+			hosts:          []string{"*/*.one.org"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
 		},
 	}
 
@@ -256,13 +231,13 @@ func TestCreate(t *testing.T) {
 	for i, c := range cases {
 		t.Run(c.testName, func(t *testing.T) {
 			gatewayName := fmt.Sprintf("gw%d", i)
-			createGateway(t, store, c.ns, gatewayName, c.hosts, c.gwSelector, c.tls, c.annotations)
+			createGateway(t, store, c.ns, gatewayName, c.hosts, c.gwSelector, c.tls, c.gatewayAnnotations)
 
 			list := getRoutes(t, routerClient, controlPlaneNs, c.expectedRoutes, time.Second)
 
 			// Only continue the validation if any route is expected to be created
 			if c.expectedRoutes > 0 {
-				validateRoutes(t, c.hosts, list, gatewayName, c.tls)
+				validateRoutes(t, c.hosts, list, gatewayName, c.tls, c.routeAnnotations)
 
 				// Remove the gateway and expect all routes get removed
 				deleteGateway(t, k8sClient.GetActualClient().Istio(), c.ns, gatewayName)
@@ -272,7 +247,7 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, gatewayName string, tls bool) {
+func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, gatewayName string, tls bool, expectedAnnotations map[string]string) {
 	for _, host := range hosts {
 		route := findRouteByHost(list, host)
 		if route == nil {
@@ -283,8 +258,15 @@ func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, ga
 		if route.Labels[gatewayNameLabel] != gatewayName {
 			t.Fatalf("wrong label, expecting %s, got %s", gatewayName, route.Annotations[gatewayNameLabel])
 		}
-		if route.Annotations["foo"] != "bar" {
-			t.Fatal("gateway annotations were not copied to route")
+		if expectedAnnotations != nil {
+			if len(route.Annotations) != len(expectedAnnotations) {
+				t.Fatalf("found unexpected annotations: %s", route.Annotations)
+			}
+			for key, val := range expectedAnnotations {
+				if route.Annotations[key] != val {
+					t.Fatalf("annotation '%s' was not copied to route", key)
+				}
+			}
 		}
 		if _, found := route.Annotations[ShouldManageRouteAnnotation]; found {
 			t.Fatalf("annotation %q should not be copied to the route", ShouldManageRouteAnnotation)
@@ -390,7 +372,7 @@ func TestEdit(t *testing.T) {
 			editGateway(t, store, c.ns, "gw", c.hosts, c.gwSelector, c.tls, fmt.Sprintf("%d", i+2))
 			list = getRoutes(t, routerClient, controlPlane, c.expectedRoutes, time.Second)
 
-			validateRoutes(t, c.hosts, list, "gw", c.tls)
+			validateRoutes(t, c.hosts, list, "gw", c.tls, nil)
 		})
 	}
 }
@@ -453,7 +435,7 @@ func TestStatelessness(t *testing.T) {
 	createGateway(t, store, initialState.ns, initialState.name, initialState.hosts, map[string]string{"istio": "ingressgateway"}, initialState.tls, nil)
 
 	list := getRoutes(t, routerClient, watchedNamespace, 2, time.Second)
-	validateRoutes(t, initialState.hosts, list, initialState.name, initialState.tls)
+	validateRoutes(t, initialState.hosts, list, initialState.name, initialState.tls, nil)
 
 	close(iorStop)
 
@@ -551,10 +533,6 @@ func createGateway(t *testing.T, store model.ConfigStoreController, ns string, n
 	var tlsConfig *networking.ServerTLSSettings
 	if tls {
 		tlsConfig = &networking.ServerTLSSettings{HttpsRedirect: true}
-	}
-
-	if annotations == nil {
-		annotations = map[string]string{"foo": "bar"}
 	}
 
 	_, err := store.Create(config.Config{
