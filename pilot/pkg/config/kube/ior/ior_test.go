@@ -102,6 +102,8 @@ func TestCreate(t *testing.T) {
 		tls                bool
 		gatewayAnnotations map[string]string
 		routeAnnotations   map[string]string
+		gatewayLabels      map[string]string
+		routeLabels        map[string]string
 	}{
 		{
 			testName:       "One host",
@@ -173,7 +175,7 @@ func TestCreate(t *testing.T) {
 			routeAnnotations:   map[string]string{"foo": "bar"},
 		},
 		{
-			testName:       "ArgoCD annotations should be copied from Gateway to Route",
+			testName:       "all annotations except kubectl.kubernetes.io should be copied from Gateway to Route",
 			ns:             "istio-system",
 			hosts:          []string{"istio.io"},
 			gwSelector:     map[string]string{"istio": "ingressgateway"},
@@ -182,6 +184,28 @@ func TestCreate(t *testing.T) {
 				"kubectl.kubernetes.io/last-applied-configuration": "{}"},
 			routeAnnotations: map[string]string{"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
 				originalHostAnnotation: "istio.io"},
+		},
+		{
+			testName:       "all labels except maistra.io and argocd.argoproj.io/instance should be copied from Gateway to Route",
+			ns:             "istio-system",
+			hosts:          []string{"istio.io"},
+			gwSelector:     map[string]string{"istio": "ingressgateway"},
+			expectedRoutes: 1,
+			gatewayLabels: map[string]string{
+				"argocd.argoproj.io/instance":    "app",
+				"argocd.argoproj.io/secret-type": "cluster",
+				"foo":                            "bar",
+				"maistra.io/manageRoute":         "false",
+				"maistra.io/gateway-name":        "random",
+			},
+			routeLabels: map[string]string{
+				"argocd.argoproj.io/secret-type":     "cluster",
+				"foo":                                "bar",
+				"maistra.io/gateway-name":            "gw10",
+				"maistra.io/gateway-namespace":       "istio-system",
+				"maistra.io/gateway-resourceVersion": "1",
+				"maistra.io/generated-by":            "ior",
+			},
 		},
 		{
 			testName:   "Egress gateway must be ignored",
@@ -231,13 +255,13 @@ func TestCreate(t *testing.T) {
 	for i, c := range cases {
 		t.Run(c.testName, func(t *testing.T) {
 			gatewayName := fmt.Sprintf("gw%d", i)
-			createGateway(t, store, c.ns, gatewayName, c.hosts, c.gwSelector, c.tls, c.gatewayAnnotations)
+			createGateway(t, store, c.ns, gatewayName, c.hosts, c.gwSelector, c.tls, c.gatewayAnnotations, c.gatewayLabels)
 
 			list := getRoutes(t, routerClient, controlPlaneNs, c.expectedRoutes, time.Second)
 
 			// Only continue the validation if any route is expected to be created
 			if c.expectedRoutes > 0 {
-				validateRoutes(t, c.hosts, list, gatewayName, c.tls, c.routeAnnotations)
+				validateRoutes(t, c.hosts, list, gatewayName, c.tls, c.routeAnnotations, c.routeLabels)
 
 				// Remove the gateway and expect all routes get removed
 				deleteGateway(t, k8sClient.GetActualClient().Istio(), c.ns, gatewayName)
@@ -247,7 +271,8 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, gatewayName string, tls bool, expectedAnnotations map[string]string) {
+func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, gatewayName string, tls bool,
+	expectedAnnotations map[string]string, expectedLabels map[string]string) {
 	for _, host := range hosts {
 		route := findRouteByHost(list, host)
 		if route == nil {
@@ -255,24 +280,31 @@ func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, ga
 		}
 
 		// Check metadata
-		if route.Labels[gatewayNameLabel] != gatewayName {
-			t.Fatalf("wrong label, expecting %s, got %s", gatewayName, route.Annotations[gatewayNameLabel])
-		}
 		if expectedAnnotations != nil {
 			if len(route.Annotations) != len(expectedAnnotations) {
-				t.Fatalf("found unexpected annotations: %s", route.Annotations)
+				t.Fatalf("route was created with unexpected annotations: %s", route.Annotations)
 			}
 			for key, val := range expectedAnnotations {
 				if route.Annotations[key] != val {
-					t.Fatalf("annotation '%s' was not copied to route", key)
+					t.Fatalf("annotation '%s' was not copied to route: expected '%s', got '%s'", key, val, route.Annotations[key])
 				}
 			}
 		}
 		if _, found := route.Annotations[ShouldManageRouteAnnotation]; found {
 			t.Fatalf("annotation %q should not be copied to the route", ShouldManageRouteAnnotation)
 		}
-		if route.Labels["foo"] != "bar" {
-			t.Fatal("gateway labels were not copied to route")
+		if expectedLabels != nil {
+			if len(route.Labels) != len(expectedLabels) {
+				t.Fatalf("route was created with unexpected labels: %s", route.Labels)
+			}
+			for key, val := range expectedLabels {
+				if route.Labels[key] != val {
+					t.Fatalf("label '%s' was not copied to route: expected '%s', got '%s'", key, val, route.Labels[key])
+				}
+			}
+		}
+		if route.Labels[gatewayNameLabel] != gatewayName {
+			t.Fatalf("wrong label, expecting %s, got %s", gatewayName, route.Annotations[gatewayNameLabel])
 		}
 		if _, found := route.Labels[prefixedLabel]; found {
 			t.Fatalf("label %q should not be copied to the route", prefixedLabel)
@@ -363,7 +395,7 @@ func TestEdit(t *testing.T) {
 
 	controlPlane := "istio-system"
 	createIngressGateway(t, k8sClient.GetActualClient(), controlPlane, map[string]string{"istio": "ingressgateway"})
-	createGateway(t, store, controlPlane, "gw", []string{"abc.com"}, map[string]string{"istio": "ingressgateway"}, false, nil)
+	createGateway(t, store, controlPlane, "gw", []string{"abc.com"}, map[string]string{"istio": "ingressgateway"}, false, nil, nil)
 
 	list := getRoutes(t, routerClient, controlPlane, 1, time.Second)
 
@@ -372,7 +404,7 @@ func TestEdit(t *testing.T) {
 			editGateway(t, store, c.ns, "gw", c.hosts, c.gwSelector, c.tls, fmt.Sprintf("%d", i+2))
 			list = getRoutes(t, routerClient, controlPlane, c.expectedRoutes, time.Second)
 
-			validateRoutes(t, c.hosts, list, "gw", c.tls, nil)
+			validateRoutes(t, c.hosts, list, "gw", c.tls, nil, nil)
 		})
 	}
 }
@@ -432,10 +464,10 @@ func TestStatelessness(t *testing.T) {
 	runClients(store, kubeClient, stop)
 
 	createIngressGateway(t, kubeClient.GetActualClient(), watchedNamespace, map[string]string{"istio": "ingressgateway"})
-	createGateway(t, store, initialState.ns, initialState.name, initialState.hosts, map[string]string{"istio": "ingressgateway"}, initialState.tls, nil)
+	createGateway(t, store, initialState.ns, initialState.name, initialState.hosts, map[string]string{"istio": "ingressgateway"}, initialState.tls, nil, nil)
 
 	list := getRoutes(t, routerClient, watchedNamespace, 2, time.Second)
-	validateRoutes(t, initialState.hosts, list, initialState.name, initialState.tls, nil)
+	validateRoutes(t, initialState.hosts, list, initialState.name, initialState.tls, nil, nil)
 
 	close(iorStop)
 
@@ -454,6 +486,7 @@ func createGateways(t *testing.T, store model.ConfigStoreController, begin, end 
 			[]string{fmt.Sprintf("d%d.com", i)},
 			map[string]string{"istio": "ingressgateway"},
 			false,
+			nil,
 			nil)
 	}
 }
@@ -526,7 +559,7 @@ func createService(t *testing.T, client kube.Client, ns string, labels map[strin
 }
 
 func createGateway(t *testing.T, store model.ConfigStoreController, ns string, name string, hosts []string, gwSelector map[string]string,
-	tls bool, annotations map[string]string,
+	tls bool, annotations map[string]string, labels map[string]string,
 ) {
 	t.Helper()
 
@@ -541,7 +574,7 @@ func createGateway(t *testing.T, store model.ConfigStoreController, ns string, n
 			Namespace:        ns,
 			Name:             name,
 			Annotations:      annotations,
-			Labels:           map[string]string{"foo": "bar", prefixedLabel: "present"},
+			Labels:           labels,
 			ResourceVersion:  "1",
 		},
 		Spec: &networking.Gateway{
