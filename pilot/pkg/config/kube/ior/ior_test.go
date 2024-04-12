@@ -180,10 +180,14 @@ func TestCreate(t *testing.T) {
 			hosts:          []string{"istio.io"},
 			gwSelector:     map[string]string{"istio": "ingressgateway"},
 			expectedRoutes: 1,
-			gatewayAnnotations: map[string]string{"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
-				"kubectl.kubernetes.io/last-applied-configuration": "{}"},
-			routeAnnotations: map[string]string{"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
-				originalHostAnnotation: "istio.io"},
+			gatewayAnnotations: map[string]string{
+				"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
+				"kubectl.kubernetes.io/last-applied-configuration": "{}",
+			},
+			routeAnnotations: map[string]string{
+				"foo": "bar", "argocd.argoproj.io/sync-options": "Prune=false",
+				originalHostAnnotation: "istio.io",
+			},
 		},
 		{
 			testName:       "all labels except maistra.io and argocd.argoproj.io/instance should be copied from Gateway to Route",
@@ -272,7 +276,8 @@ func TestCreate(t *testing.T) {
 }
 
 func validateRoutes(t *testing.T, hosts []string, list *routeapiv1.RouteList, gatewayName string, tls bool,
-	expectedAnnotations map[string]string, expectedLabels map[string]string) {
+	expectedAnnotations map[string]string, expectedLabels map[string]string,
+) {
 	for _, host := range hosts {
 		route := findRouteByHost(list, host)
 		if route == nil {
