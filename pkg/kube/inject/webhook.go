@@ -1030,7 +1030,10 @@ func (wh *Webhook) inject(ar *kube.AdmissionReview, path string) *kube.Admission
 				proxyGID = pointer.Int64(*container.SecurityContext.RunAsGroup)
 			}
 		}
-	} else if !tproxyInterceptionMode {
+	} else if tproxyInterceptionMode {
+		proxyUID = pointer.Int64(0)
+		proxyGID = pointer.Int64(DefaultSidecarProxyGID)
+	} else {
 		// we're injecting a normal pod (with app container and optional sidecar container)
 		// we set proxyUID to the main app container's UID incremented by 1
 		// we set proxyGID to the main app container's UID
@@ -1060,11 +1063,6 @@ func (wh *Webhook) inject(ar *kube.AdmissionReview, path string) *kube.Admission
 
 	// We need to set the UID/GID to something, or the injected manifest will fail to parse (this happens because
 	// {{ .ProxyUID/GID }} in the charts get resolved to "nil" (with quotes), which can't be parsed as a float).
-	if tproxyInterceptionMode { // because the proxy must run as root in TPROXY mode, we must leave the proxyUID unset
-		proxyUID = pointer.Int64(0)
-		proxyGID = pod.Spec.SecurityContext.RunAsUser
-	}
-
 	if proxyUID == nil {
 		proxyUID = pointer.Int64(DefaultSidecarProxyUID)
 	}
