@@ -1247,20 +1247,22 @@ func replaceProxyRunAsUserID(pod *corev1.Pod, proxyUID *int64) {
 	if proxyUID == nil {
 		return
 	}
-	for i, c := range pod.Spec.InitContainers {
-		if c.Name == InitContainerName || c.Name == ValidationContainerName {
-			for j, arg := range c.Args {
-				if arg == "-u" {
-					pod.Spec.InitContainers[i].Args[j+1] = strconv.FormatInt(*proxyUID, 10)
-					break
+	if *proxyUID != 0 {
+		for i, c := range pod.Spec.InitContainers {
+			if c.Name == InitContainerName || c.Name == ValidationContainerName {
+				for j, arg := range c.Args {
+					if arg == "-u" {
+						pod.Spec.InitContainers[i].Args[j+1] = strconv.FormatInt(*proxyUID, 10)
+						break
+					}
 				}
-			}
-			if c.Name == ValidationContainerName {
-				if c.SecurityContext == nil {
-					securityContext := corev1.SecurityContext{}
-					pod.Spec.InitContainers[i].SecurityContext = &securityContext
+				if c.Name == ValidationContainerName {
+					if c.SecurityContext == nil {
+						securityContext := corev1.SecurityContext{}
+						pod.Spec.InitContainers[i].SecurityContext = &securityContext
+					}
+					pod.Spec.InitContainers[i].SecurityContext.RunAsUser = proxyUID
 				}
-				pod.Spec.InitContainers[i].SecurityContext.RunAsUser = proxyUID
 			}
 		}
 	}
