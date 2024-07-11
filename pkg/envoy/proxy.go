@@ -182,8 +182,7 @@ func (e *envoy) Run(abort <-chan error) error {
 	cmd.Env = os.Environ()
 	if common_features.CompliancePolicy == common_features.FIPS_140_2 {
 		// Limit the TLSv1.2 ciphers in google_grpc client in Envoy to the compliant ciphers.
-		cmd.Env = append(cmd.Env,
-			"GRPC_SSL_CIPHER_SUITES=ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384")
+		cmd.Env = append(cmd.Env, "GRPC_SSL_CIPHER_SUITES=ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384")
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
