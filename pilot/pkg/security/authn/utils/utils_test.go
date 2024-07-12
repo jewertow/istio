@@ -70,6 +70,10 @@ func TestGetMTLSCipherSuites(t *testing.T) {
 		expectedMTLSCipherSuites []string
 	}{
 		{
+			name:                     "Default MTLS supported Ciphers",
+			expectedMTLSCipherSuites: nil,
+		},
+		{
 			name: "Configure 1 MTLS cipher suite",
 			mesh: meshconfig.MeshConfig{
 				MeshMTLS: &meshconfig.MeshConfig_TLSConfig{
