@@ -220,7 +220,7 @@ func NewRedirect(pi *PodInfo) (*Redirect, error) {
 		redir.noRedirectUID = fmt.Sprintf("%d", *pi.ProxyUID)
 	}
 	redir.noRedirectGID = defaultNoRedirectGID
-	if pi.ProxyGID != nil {
+	if pi.ProxyGID != nil && *pi.ProxyGID != 0 {
 		redir.noRedirectGID = fmt.Sprintf("%d", *pi.ProxyGID)
 	}
 	isFound, redir.includeIPCidrs, valErr = getAnnotationOrDefault("includeIPCidrs", pi.Annotations)
