@@ -1476,7 +1476,7 @@ func TestFindProxyUGID(t *testing.T) {
 		expectedUID: 1001,
 		expectedGID: 1001,
 	}, {
-		name: "sidecar: pod and container security contexts with UID and GID: pod security context should be preferred",
+		name: "sidecar: pod and container security contexts: pod security context is chosen, because has bigger values",
 		pod: corev1.Pod{
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{
@@ -1495,23 +1495,24 @@ func TestFindProxyUGID(t *testing.T) {
 		expectedUID: 2001,
 		expectedGID: 2002,
 	}, {
-		name: "sidecar: pod and container security contexts: container security context is ignored even if pod security context has no GID",
+		name: "sidecar: pod and container security contexts: container security context is chosen, because has bigger values",
 		pod: corev1.Pod{
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(1000),
-						RunAsGroup: pointer.Int64(1001),
+						RunAsUser:  pointer.Int64(2000),
+						RunAsGroup: pointer.Int64(2001),
 					},
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser: pointer.Int64(2000),
+					RunAsUser:  pointer.Int64(1000),
+					RunAsGroup: pointer.Int64(1001),
 				},
 			},
 		},
 		expectedUID: 2001,
-		expectedGID: 2001,
+		expectedGID: 2002,
 	}, {
 		name: "sidecar: pod security context with UID and GID set to 0: proxy UID should be incremented and GID should overlap with the app GID",
 		pod: corev1.Pod{
