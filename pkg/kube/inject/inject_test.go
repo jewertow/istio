@@ -31,7 +31,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
 
 	"istio.io/api/annotation"
 	meshapi "istio.io/api/mesh/v1alpha1"
@@ -46,6 +45,7 @@ import (
 	"istio.io/istio/pkg/kube/kclient"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/platform"
+	"istio.io/istio/pkg/ptr"
 	"istio.io/istio/pkg/test"
 	"istio.io/istio/pkg/util/sets"
 )
@@ -1240,13 +1240,13 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(1000),
-						RunAsGroup: pointer.Int64(1000),
+						RunAsUser:  ptr.Of[int64](1000),
+						RunAsGroup: ptr.Of[int64](1000),
 					},
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser:  pointer.Int64(1000),
-					RunAsGroup: pointer.Int64(1000),
+					RunAsUser:  ptr.Of[int64](1000),
+					RunAsGroup: ptr.Of[int64](1000),
 				},
 			},
 		},
@@ -1260,13 +1260,13 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 					Name: "app",
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser:  pointer.Int64(1000),
-					RunAsGroup: pointer.Int64(1001),
+					RunAsUser:  ptr.Of[int64](1000),
+					RunAsGroup: ptr.Of[int64](1001),
 				},
 			},
 		},
 		expectedUID: 1001,
-		expectedGID: 1000,
+		expectedGID: 1002,
 	}, {
 		name: "sidecar: pod security context with UID only: proxy UID should be incremented and GID should be equal to app UID",
 		pod: corev1.Pod{
@@ -1275,12 +1275,12 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 					Name: "app",
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser: pointer.Int64(1000),
+					RunAsUser: ptr.Of[int64](1000),
 				},
 			},
 		},
 		expectedUID: 1001,
-		expectedGID: 1000,
+		expectedGID: 1001,
 	}, {
 		name: "sidecar: container security context with UID and GID: proxy UID should be incremented and GID should be equal to app UID",
 		pod: corev1.Pod{
@@ -1288,14 +1288,14 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(1000),
-						RunAsGroup: pointer.Int64(1001),
+						RunAsUser:  ptr.Of[int64](1000),
+						RunAsGroup: ptr.Of[int64](1001),
 					},
 				}},
 			},
 		},
 		expectedUID: 1001,
-		expectedGID: 1000,
+		expectedGID: 1002,
 	}, {
 		name: "sidecar: container security context with UID only: proxy UID should be incremented and GID should be equal to app UID",
 		pod: corev1.Pod{
@@ -1303,13 +1303,13 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser: pointer.Int64(1000),
+						RunAsUser: ptr.Of[int64](1000),
 					},
 				}},
 			},
 		},
 		expectedUID: 1001,
-		expectedGID: 1000,
+		expectedGID: 1001,
 	}, {
 		name: "sidecar: pod and container security contexts: pod security context is chosen, because has bigger values",
 		pod: corev1.Pod{
@@ -1317,18 +1317,18 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(1000),
-						RunAsGroup: pointer.Int64(1001),
+						RunAsUser:  ptr.Of[int64](1000),
+						RunAsGroup: ptr.Of[int64](1001),
 					},
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser:  pointer.Int64(2000),
-					RunAsGroup: pointer.Int64(2001),
+					RunAsUser:  ptr.Of[int64](2000),
+					RunAsGroup: ptr.Of[int64](2001),
 				},
 			},
 		},
 		expectedUID: 2001,
-		expectedGID: 2000,
+		expectedGID: 2002,
 	}, {
 		name: "sidecar: pod and container security contexts: container security context is chosen, because has bigger values",
 		pod: corev1.Pod{
@@ -1336,18 +1336,18 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(2000),
-						RunAsGroup: pointer.Int64(2001),
+						RunAsUser:  ptr.Of[int64](2000),
+						RunAsGroup: ptr.Of[int64](2001),
 					},
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser:  pointer.Int64(1000),
-					RunAsGroup: pointer.Int64(1001),
+					RunAsUser:  ptr.Of[int64](1000),
+					RunAsGroup: ptr.Of[int64](1001),
 				},
 			},
 		},
 		expectedUID: 2001,
-		expectedGID: 1000,
+		expectedGID: 2002,
 	}, {
 		name: "sidecar: pod security context with UID and GID set to 0: proxy UID should be incremented and GID should overlap with the app GID",
 		pod: corev1.Pod{
@@ -1356,13 +1356,13 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 					Name: "app",
 				}},
 				SecurityContext: &corev1.PodSecurityContext{
-					RunAsUser:  pointer.Int64(0),
-					RunAsGroup: pointer.Int64(0),
+					RunAsUser:  ptr.Of[int64](0),
+					RunAsGroup: ptr.Of[int64](0),
 				},
 			},
 		},
 		expectedUID: 1,
-		expectedGID: 0,
+		expectedGID: 1,
 	}, {
 		name: "sidecar: container security context with UID and GID set to 0: proxy UID should be incremented and GID should overlap with the app GID",
 		pod: corev1.Pod{
@@ -1370,14 +1370,14 @@ func TestGetProxyIDsFromPod(t *testing.T) {
 				Containers: []corev1.Container{{
 					Name: "app",
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser:  pointer.Int64(0),
-						RunAsGroup: pointer.Int64(0),
+						RunAsUser:  ptr.Of[int64](0),
+						RunAsGroup: ptr.Of[int64](0),
 					},
 				}},
 			},
 		},
 		expectedUID: 1,
-		expectedGID: 0,
+		expectedGID: 1,
 	}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
